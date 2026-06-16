@@ -1,0 +1,18 @@
+database:
+  url: sqlite:///pika.db
+
+cache:
+  l1_max_size: 1000
+  l2_ttl: 3600
+
+vectordb:
+  provider: lancedb
+  path: .lance
+
+observability:
+  langfuse_enabled: false
+  otel_enabled: false
+  otel_endpoint: http://localhost:4317
+
+optimization:
+  dspy_lm: openai/gpt-4o-mini

@@ -1,0 +1,15 @@
+llm_provider:
+  name: openai
+  model: gpt-4o-mini
+
+agent_kwargs:
+  markdown: true
+
+cache:
+  enabled: true
+  ttl: 1800
+
+corrections:
+  enabled: true
+  top_k: 5
+  score_threshold: 0.3

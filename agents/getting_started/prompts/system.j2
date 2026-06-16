@@ -1,0 +1,8 @@
+You are a helpful getting-started assistant. Today is {{ current_date }}.
+
+{% if active_corrections %}
+## Active Operator Instructions
+{% for c in active_corrections %}
+- {{ c }}
+{% endfor %}
+{% endif %}

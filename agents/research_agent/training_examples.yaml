@@ -1,0 +1,9 @@
+- input: What is the current price of gold?
+  output: |
+    Gold is currently trading at approximately $X per troy ounce.
+    Sources: marketwatch.com, kitco.com
+
+- input: Summarize recent news about SpaceX
+  output: |
+    Recent SpaceX news covers launch activity, Starship progress, and commercial contracts.
+    Sources: spacenews.com, reuters.com

@@ -1,0 +1,15 @@
+agents:
+  - id: getting_started
+    owner: pika-core
+    description: Hello-world example agent
+    path: agents/getting_started/agent.py
+
+  - id: research_agent
+    owner: pika-core
+    description: Web research and summarization
+    path: agents/research_agent/agent.py
+
+tools:
+  - id: web_search
+    owner: pika-core
+    path: tools/web_search/tool.py

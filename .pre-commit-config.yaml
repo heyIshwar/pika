@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: pika-registry-check
+        name: pika registry check
+        entry: pika check
+        language: system
+        pass_filenames: false
+        always_run: true

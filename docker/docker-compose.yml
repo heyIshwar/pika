@@ -1,0 +1,38 @@
+services:
+  pika:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - ../.env
+    volumes:
+      - ../pika.db:/app/pika.db
+      - ../.lance:/app/.lance
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    profiles:
+      - redis
+
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: pika
+      MYSQL_DATABASE: pika
+    ports:
+      - "3306:3306"
+    profiles:
+      - mysql
+
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml
+    ports:
+      - "4317:4317"
+    profiles:
+      - otel
