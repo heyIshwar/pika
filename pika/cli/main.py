@@ -104,19 +104,22 @@ def serve(
     port: int = typer.Option(8080, "--port", "-p"),
     host: str = typer.Option("0.0.0.0", "--host"),
     no_os: bool = typer.Option(False, "--no-os", help="Skip Agno AgentOS, serve only pika's own routes"),
+    reload: bool = typer.Option(False, "--reload", help="Auto-reload on code changes (dev only)"),
 ):
     """Start the pika FastAPI server (mounts Agno AgentOS by default)."""
+    import pathlib
+
     import uvicorn
 
-    if no_os:
-        from pika.api.app import create_app
-
-        app = create_app()
-    else:
-        from pika.api.app import create_os
-
-        app = create_os()
-    uvicorn.run(app, host=host, port=port)
+    app_factory = "pika.api.app:create_app" if no_os else "pika.api.app:create_os"
+    uvicorn.run(
+        app_factory,
+        factory=True,
+        host=host,
+        port=port,
+        reload=reload,
+        reload_dirs=[str(pathlib.Path.cwd())] if reload else None,
+    )
 
 
 @cli.command("check")

@@ -2,8 +2,11 @@
 
 
 async def run_eval(agent_id: str):
-    if not __import__("os").getenv("LANGFUSE_ENABLED", "").lower() == "true":
-        print(f"LangFuse disabled — set LANGFUSE_ENABLED=true to eval {agent_id}")
+    from pika.observability.tracing import langfuse_enabled
+
+    if not langfuse_enabled():
+        print(f"LangFuse disabled — set LANGFUSE_ENABLED=true or pika.yaml observability.langfuse_enabled")
+        print(f"to eval {agent_id}")
         return
 
     try:

@@ -10,11 +10,46 @@ from datetime import datetime, timezone
 from typing import Any, AsyncIterator
 from uuid import uuid4
 
-from pika.core.context import get_tenant_id, get_trace_id, set_trace_id
+from pika.core.context import (
+    get_run_id,
+    get_session_id,
+    get_tenant_id,
+    get_trace_id,
+    get_user_id,
+    set_run_id,
+    set_session_id,
+    set_trace_id,
+    set_user_id,
+)
 from pika.observability.model import PikaSpan, SpanKind
 
-LANGFUSE_ENABLED = os.getenv("LANGFUSE_ENABLED", "false").lower() == "true"
-OTEL_ENABLED = os.getenv("OTEL_ENABLED", "false").lower() == "true"
+
+def langfuse_enabled() -> bool:
+    env = os.getenv("LANGFUSE_ENABLED", "").lower()
+    if env == "true":
+        return True
+    if env == "false":
+        return False
+    try:
+        from pika.config.loader import get_settings
+
+        return bool(get_settings().get("observability", {}).get("langfuse_enabled", False))
+    except Exception:
+        return False
+
+
+def otel_enabled() -> bool:
+    env = os.getenv("OTEL_ENABLED", "").lower()
+    if env == "true":
+        return True
+    if env == "false":
+        return False
+    try:
+        from pika.config.loader import get_settings
+
+        return bool(get_settings().get("observability", {}).get("otel_enabled", False))
+    except Exception:
+        return False
 
 
 class Tracer:
@@ -27,12 +62,77 @@ class Tracer:
     def __init__(self, component: str, db=None):
         self._component = component
         self._db = db
-        self._lf = self._build_langfuse() if LANGFUSE_ENABLED else None
-        self._otel = self._build_otel() if OTEL_ENABLED else None
+        self._lf = self._build_langfuse() if langfuse_enabled() else None
+        self._otel = self._build_otel() if otel_enabled() else None
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    @asynccontextmanager
+    async def run_context(
+        self,
+        *,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        run_id: str | None = None,
+        extra_metadata: dict | None = None,
+    ) -> AsyncIterator[str]:
+        """
+        Start a traced agent run: set pika context vars and Langfuse trace attributes.
+
+        Propagates user_id, session_id, run_id, and pika_trace_id to all child spans.
+        Must wrap the whole run before any span() calls.
+        """
+        trace_id = str(uuid4())
+        set_trace_id(trace_id)
+        set_session_id(session_id)
+        set_user_id(user_id)
+        set_run_id(run_id)
+
+        lf_propagate = None
+        if self._lf:
+            try:
+                from langfuse import propagate_attributes
+
+                metadata = {
+                    key: str(value)
+                    for key, value in {
+                        "pika_trace_id": trace_id,
+                        "run_id": run_id,
+                        "tenant_id": get_tenant_id(),
+                        "agent_id": self._component,
+                        **(extra_metadata or {}),
+                    }.items()
+                    if value is not None
+                }
+                lf_propagate = propagate_attributes(
+                    user_id=user_id,
+                    session_id=session_id,
+                    metadata=metadata or None,
+                    tags=[self._component],
+                    trace_name=trace_id,
+                )
+                lf_propagate.__enter__()
+            except Exception:
+                lf_propagate = None
+
+        try:
+            yield trace_id
+        finally:
+            if lf_propagate:
+                try:
+                    lf_propagate.__exit__(None, None, None)
+                except Exception:
+                    pass
+            if self._lf:
+                try:
+                    self._lf.flush()
+                except Exception:
+                    pass
+            set_session_id(None)
+            set_user_id(None)
+            set_run_id(None)
 
     @asynccontextmanager
     async def span(
@@ -41,6 +141,7 @@ class Tracer:
         kind: SpanKind = SpanKind.AGENT_STEP,
         input: Any = None,
         attributes: dict | None = None,
+        observation_name: str | None = None,
     ) -> AsyncIterator[dict]:
         """
         Async context manager that records a span.
@@ -54,10 +155,11 @@ class Tracer:
 
         span_id = str(uuid4())
         start = datetime.now(timezone.utc)
+        lf_name = observation_name or f"{self._component}.{name}"
         span_data: dict = {
             "span_id": span_id,
             "trace_id": trace_id,
-            "name": f"{self._component}.{name}",
+            "name": lf_name,
             "kind": kind,
             "input": input,
             "output": None,
@@ -66,11 +168,31 @@ class Tracer:
             "attributes": {
                 "agent_id": self._component,
                 "tenant_id": get_tenant_id(),
+                "session_id": get_session_id(),
+                "user_id": get_user_id(),
+                "run_id": get_run_id(),
+                "pika_trace_id": trace_id,
                 **(attributes or {}),
             },
         }
 
-        lf_span = self._lf_start(span_data) if self._lf else None
+        lf_ctx = None
+        if self._lf:
+            try:
+                kind = span_data.get("kind", SpanKind.AGENT_STEP)
+                lf_ctx = self._lf.start_as_current_observation(
+                    as_type=self._lf_observation_type(kind),
+                    name=lf_name,
+                    input=input,
+                    metadata=span_data.get("attributes", {}),
+                )
+                lf_span = lf_ctx.__enter__()
+            except Exception:
+                lf_ctx = None
+                lf_span = None
+        else:
+            lf_span = None
+
         otel_span = self._otel_start(span_data) if self._otel else None
 
         try:
@@ -116,10 +238,16 @@ class Tracer:
                     lf_span.update(
                         output=span_data.get("output"),
                         status_message=span_data.get("error"),
-                        end_time=end,
+                        level="ERROR" if span_data["status"] == "ERROR" else None,
                     )
                     if self._lf:
                         self._lf.flush()
+                except Exception:
+                    pass
+
+            if lf_ctx:
+                try:
+                    lf_ctx.__exit__(None, None, None)
                 except Exception:
                     pass
 
@@ -145,15 +273,13 @@ class Tracer:
         except Exception:
             return None
 
-    def _lf_start(self, span_data: dict):
-        try:
-            return self._lf.span(
-                name=span_data["name"],
-                input=span_data.get("input"),
-                metadata=span_data.get("attributes", {}),
-            )
-        except Exception:
-            return None
+    def _lf_observation_type(self, kind: SpanKind | str) -> str:
+        value = kind.value if isinstance(kind, SpanKind) else str(kind)
+        if value in {SpanKind.TOOL_CALL.value, "tool_call"}:
+            return "tool"
+        if value in {SpanKind.AGENT_STEP.value, "agent_step"}:
+            return "agent"
+        return "span"
 
     # ------------------------------------------------------------------
     # OTEL helpers

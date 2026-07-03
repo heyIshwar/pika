@@ -29,7 +29,7 @@ postgres = ["psycopg[binary]>=3.1", "pgvector>=0.3"]
 dspy = ["dspy-ai>=2.5"]
 langfuse = ["langfuse>=3"]
 otel = ["opentelemetry-sdk", "opentelemetry-exporter-otlp"]
-dev = ["pytest", "pytest-asyncio", "httpx", "ruff", "pre-commit"]
+dev = ["pytest", "pytest-asyncio", "httpx", "ruff", "pre-commit", "langfuse>=3", "python-dotenv"]
 all = [
     "redis[asyncio]>=5",
     "psycopg[binary]>=3.1",

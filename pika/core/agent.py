@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, AsyncIterator, List, Optional
+from uuid import uuid4
 
 from agno.agent import Agent
 from agno.models.base import Model
@@ -123,45 +124,142 @@ class BaseAgent(Agent):
             max_results=knowledge_cfg.get("max_results", 10),
         )
 
-    async def run(self, message: str, **kwargs) -> Any:
+    def _trace_input(self, input: Any) -> str:
+        if isinstance(input, str):
+            return input
+        return str(input)
+
+    async def _apply_corrections(self, message: str, kwargs: dict) -> None:
+        if not self._corrections:
+            return
+        async with self._tracer.span(
+            "corrections.retrieve", kind=SpanKind.CORRECTION, input=message
+        ) as s:
+            corrections = await self._corrections.retrieve(message)
+            s["output"] = f"{len(corrections)} corrections"
+        if corrections:
+            deps = kwargs.setdefault("dependencies", {})
+            deps["active_corrections"] = corrections
+            kwargs.setdefault("add_dependencies_to_context", True)
+
+    def _prepare_trace_kwargs(self, kwargs: dict) -> dict:
+        run_id = kwargs.get("run_id") or str(uuid4())
+        kwargs["run_id"] = run_id
+        return {
+            "session_id": kwargs.get("session_id"),
+            "user_id": kwargs.get("user_id"),
+            "run_id": run_id,
+        }
+
+    async def _traced_arun(self, message: str, **kwargs) -> Any:
         self._state = AgentState.THINKING
+        trace_input = self._trace_input(message)
+        trace_ctx = self._prepare_trace_kwargs(kwargs)
 
         try:
-            # Cache check
-            if self._cache:
-                async with self._tracer.span("cache.get", kind=SpanKind.TOOL_CALL, input=message) as s:
-                    cached = await self._cache.get(self.agent_id, message)
-                    s["output"] = "hit" if cached is not None else "miss"
-                if cached is not None:
+            async with self._tracer.run_context(**trace_ctx) as trace_id:
+                async with self._tracer.span(
+                    "run",
+                    kind=SpanKind.AGENT_STEP,
+                    input=trace_input,
+                    observation_name=trace_id,
+                ) as run:
+                    # Cache check
+                    if self._cache:
+                        async with self._tracer.span(
+                            "cache.get", kind=SpanKind.TOOL_CALL, input=trace_input
+                        ) as s:
+                            cached = await self._cache.get(self.agent_id, trace_input)
+                            s["output"] = "hit" if cached is not None else "miss"
+                        if cached is not None:
+                            self._state = AgentState.DONE
+                            run["output"] = cached.content if hasattr(cached, "content") else str(cached)
+                            return cached
+
+                    await self._apply_corrections(trace_input, kwargs)
+
+                    # Main agent execution
+                    self._state = AgentState.EXECUTING
+                    async with self._tracer.span(
+                        "agent.run", kind=SpanKind.AGENT_STEP, input=trace_input
+                    ) as s:
+                        result = await super().arun(message, stream=False, **kwargs)
+                        s["output"] = result.content if hasattr(result, "content") else str(result)
+
+                    # Cache store
+                    if self._cache and result:
+                        await self._cache.set(self.agent_id, trace_input, result)
+
                     self._state = AgentState.DONE
-                    return cached
-
-            # Corrections
-            if self._corrections:
-                async with self._tracer.span("corrections.retrieve", kind=SpanKind.CORRECTION, input=message) as s:
-                    corrections = await self._corrections.retrieve(message)
-                    s["output"] = f"{len(corrections)} corrections"
-                if corrections:
-                    deps = kwargs.setdefault("dependencies", {})
-                    deps["active_corrections"] = corrections
-                    kwargs.setdefault("add_dependencies_to_context", True)
-
-            # Main agent execution
-            self._state = AgentState.EXECUTING
-            async with self._tracer.span("agent.run", kind=SpanKind.AGENT_STEP, input=message) as s:
-                result = await super().arun(message, **kwargs)
-                s["output"] = result.content if hasattr(result, "content") else str(result)
-
-            # Cache store
-            if self._cache and result:
-                await self._cache.set(self.agent_id, message, result)
-
-            self._state = AgentState.DONE
-            return result
+                    run["output"] = result.content if hasattr(result, "content") else str(result)
+                    return result
 
         except Exception:
             self._state = AgentState.ERROR
             raise
+
+    async def _traced_arun_stream(self, input, **kwargs):
+        """AgentOS chat uses stream=True — trace cache/corrections/run here too."""
+        self._state = AgentState.THINKING
+        trace_input = self._trace_input(input)
+        trace_ctx = self._prepare_trace_kwargs(kwargs)
+
+        try:
+            async with self._tracer.run_context(**trace_ctx) as trace_id:
+                async with self._tracer.span(
+                    "run",
+                    kind=SpanKind.AGENT_STEP,
+                    input=trace_input,
+                    observation_name=trace_id,
+                ) as run:
+                    if self._cache:
+                        async with self._tracer.span(
+                            "cache.get", kind=SpanKind.TOOL_CALL, input=trace_input
+                        ) as s:
+                            cached = await self._cache.get(self.agent_id, trace_input)
+                            s["output"] = "hit" if cached is not None else "miss"
+                        if cached is not None:
+                            self._state = AgentState.DONE
+                            run["output"] = cached.content if hasattr(cached, "content") else str(cached)
+                            async with self._tracer.span(
+                                "agent.run", kind=SpanKind.AGENT_STEP, input=trace_input
+                            ) as s:
+                                s["output"] = run["output"]
+                                yield cached
+                            return
+
+                    await self._apply_corrections(trace_input, kwargs)
+
+                    self._state = AgentState.EXECUTING
+                    stream_gen = super().arun(input, stream=True, **kwargs)
+                    async with self._tracer.span(
+                        "agent.run", kind=SpanKind.AGENT_STEP, input=trace_input
+                    ) as s:
+                        output_parts: list[str] = []
+                        async for chunk in stream_gen:
+                            content = getattr(chunk, "content", None)
+                            if content:
+                                output_parts.append(str(content))
+                            yield chunk
+                        if output_parts:
+                            combined = "".join(output_parts)[:500]
+                            s["output"] = combined
+                            run["output"] = combined
+
+                    self._state = AgentState.DONE
+
+        except Exception:
+            self._state = AgentState.ERROR
+            raise
+
+    def arun(self, input, *, stream=None, **kwargs):  # type: ignore[override]
+        """Wrap Agno's arun so AgentOS / serve path gets Langfuse spans too."""
+        if stream:
+            return self._traced_arun_stream(input, **kwargs)
+        return self._traced_arun(input, **kwargs)
+
+    async def run(self, message: str, **kwargs) -> Any:
+        return await self._traced_arun(message, **kwargs)
 
     async def stream(self, message: str, **kwargs) -> AsyncIterator[str]:
         """Stream tokens from the agent response."""
