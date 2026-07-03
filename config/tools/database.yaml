@@ -1,0 +1,2 @@
+# db_url: postgresql://user:pass@host:5432/existing_db   # defaults to pika's own DATABASE_URL
+# schema: public

@@ -1,2 +1,8 @@
-name: openai
-model: gpt-4o-mini
+name: openrouter
+model: google/gemini-2.5-flash-lite
+retries: 2
+delay_between_retries: 5
+exponential_backoff: true
+# OpenRouter attribution headers (required for good rate limits on free models)
+http_referer: https://pika-agents.dev
+app_title: pika-agents

@@ -9,7 +9,17 @@ agents:
     description: Web research and summarization
     path: agents/research_agent/agent.py
 
-tools:
+teams:
+  - id: orchestrator
+    owner: pika-core
+    description: Routes tasks to the best specialist agent
+    path: teams/orchestrator/agent.py
+
+skills:
   - id: web_search
     owner: pika-core
-    path: tools/web_search/tool.py
+    path: skills/web_search/skill.py
+
+  - id: database
+    owner: pika-core
+    path: skills/database/skill.py

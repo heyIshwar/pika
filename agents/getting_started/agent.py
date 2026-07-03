@@ -1,4 +1,4 @@
-from pika.agent import BaseAgent
+from pika import BaseAgent
 
 
 class GettingStartedAgent(BaseAgent):

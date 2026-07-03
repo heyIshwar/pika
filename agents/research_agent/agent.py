@@ -1,4 +1,5 @@
-from pika.agent import BaseAgent
+from pika import BaseAgent
+from skills.database.skill import DatabaseSkill
 
 
 class ResearchAgent(BaseAgent):
@@ -10,7 +11,10 @@ class ResearchAgent(BaseAgent):
         "Include URLs of sources in your response",
         "Keep summaries under 200 words unless asked for more",
         "If uncertain, say so",
+        "For questions about internal data, use the database tools or your knowledge base",
     ]
+
+    skills = [DatabaseSkill()]
 
     markdown = True
     add_datetime_to_context = True

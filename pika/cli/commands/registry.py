@@ -15,7 +15,7 @@ def validate_registry():
     data = yaml.safe_load(path.read_text())
     errors = []
 
-    for kind in ("agents", "tools"):
+    for kind in ("agents", "teams", "skills"):
         items = data.get(kind, [])
         ids = [item["id"] for item in items]
         dupes = [id_ for id_, n in Counter(ids).items() if n > 1]
@@ -36,8 +36,9 @@ def validate_registry():
         sys.exit(1)
 
     agents_n = len(data.get("agents", []))
-    tools_n = len(data.get("tools", []))
-    print(f"registry.yaml OK ({agents_n} agents, {tools_n} tools)")
+    teams_n = len(data.get("teams", []))
+    skills_n = len(data.get("skills", []))
+    print(f"registry.yaml OK ({agents_n} agents, {teams_n} teams, {skills_n} skills)")
 
 
 def _project_root() -> pathlib.Path:

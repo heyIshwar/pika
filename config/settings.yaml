@@ -1,3 +1,5 @@
+default_agent: orchestrator
+
 database:
   url: sqlite:///pika.db
 
@@ -8,6 +10,16 @@ cache:
 vectordb:
   provider: lancedb
   path: .lance
+
+# Global Agno Agent kwargs — applied to every agent (can be overridden per-agent in config/agents/<id>.yaml)
+agno:
+  enable_agentic_memory: false
+  enable_user_memories: false
+  add_memories_to_context: false
+  add_history_to_context: true
+  num_history_runs: 5
+  search_past_sessions: false
+  enable_agentic_state: false
 
 observability:
   langfuse_enabled: false

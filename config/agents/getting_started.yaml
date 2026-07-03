@@ -1,7 +1,3 @@
-llm_provider:
-  name: openai
-  model: gpt-4o-mini
-
 agent_kwargs:
   markdown: true
 

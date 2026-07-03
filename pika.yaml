@@ -1,0 +1,27 @@
+# pika.yaml — drop this in your project root when using pika as a library.
+# pika will find it automatically (no $PIKA_CONFIG_DIR needed).
+pika:
+  default_agent: orchestrator
+
+  database:
+    url: "sqlite:///pika.db"   # change to postgresql://... for production
+
+  vectordb:
+    provider: lancedb            # or pgvector (requires postgres extra)
+    path: .lance
+
+  # Global Agno Agent settings — all standard Agno Agent.__init__ kwargs work here
+  agno:
+    enable_agentic_memory: false
+    enable_user_memories: false
+    add_memories_to_context: false
+    add_history_to_context: true
+    num_history_runs: 5
+    search_past_sessions: false
+
+  observability:
+    langfuse_enabled: false
+    otel_enabled: false
+
+  optimization:
+    dspy_lm: openai/gpt-4o-mini

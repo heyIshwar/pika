@@ -1,0 +1,1 @@
+"""Team definitions (BaseTeam subclasses)."""

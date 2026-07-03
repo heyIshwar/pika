@@ -4,7 +4,7 @@ import textwrap
 
 AGENT_TEMPLATES = {
     "agent.py": textwrap.dedent("""\
-        from pika.agent import BaseAgent
+        from pika import BaseAgent
 
 
         class {ClassName}(BaseAgent):
@@ -73,16 +73,18 @@ def scaffold(kind: str, name: str):
         print(f"Next: add to registry.yaml, then pika chu {name}")
 
     elif kind == "tool":
-        base = pathlib.Path("tools") / name
+        base = pathlib.Path("skills") / name
         base.mkdir(parents=True, exist_ok=True)
         (base / "__init__.py").touch()
         tool_file = base / "tool.py"
+        skill_file = base / "skill.py"
         class_name = "".join(w.capitalize() for w in name.split("_")) + "Tool"
+        skill_class_name = "".join(w.capitalize() for w in name.split("_")) + "Skill"
         if not tool_file.exists():
             tool_file.write_text(
                 textwrap.dedent(f"""\
                 from agno.tools import tool as agno_tool
-                from pika.tool import BaseTool
+                from pika import BaseTool
 
 
                 class {class_name}(BaseTool):
@@ -93,6 +95,23 @@ def scaffold(kind: str, name: str):
                         raise NotImplementedError
             """)
             )
-        print(f"Scaffolded tool: tools/{name}/")
+        if not skill_file.exists():
+            skill_file.write_text(
+                textwrap.dedent(f"""\
+                from pika import BaseSkill
+
+
+                class {skill_class_name}(BaseSkill):
+                    skill_id = "{name}"
+                    description = "Describe what this skill does"
+
+                    def get_tools(self):
+                        from skills.{name}.tool import {class_name}
+
+                        t = {class_name}()
+                        return [t.run]
+            """)
+            )
+        print(f"Scaffolded skill: skills/{name}/")
     else:
         print(f'Unknown kind: {kind}. Use "agent" or "tool".')

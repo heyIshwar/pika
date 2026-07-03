@@ -1,6 +1,6 @@
 from agno.tools import tool as agno_tool
 
-from pika.tool import BaseTool
+from pika.core.tool import BaseTool
 
 
 class WebSearchTool(BaseTool):
