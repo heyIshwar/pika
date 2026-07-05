@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+early_access: false
+
+reviews:
+  profile: "chill"
+  high_level_summary: true
+  review_status: true
+  sequence_diagrams: true
+  auto_review:
+    enabled: true
+    drafts: false
+  tools:
+    ruff:
+      enabled: true
+  path_instructions:
+    - path: "pika/**/*.py"
+      instructions: |
+        Pika is an opinionated multi-agent framework on Agno. Review for:
+        - Agno agent/team patterns used correctly
+        - CLI (Typer) and FastAPI route consistency
+        - Config loading via pika.yaml / registry.yaml
+        - Async correctness in bus, orchestration, and API layers
+        - Type hints and Pydantic v2 models
+        - No secrets or API keys in code
+    - path: "agents/**/*.py"
+      instructions: |
+        Agent implementations should follow pika scaffold conventions.
+        Check registry.yaml alignment, skill/tool wiring, and knowledge/RAG config.
+    - path: "tests/**/*.py"
+      instructions: |
+        Prefer pytest-asyncio patterns. Tests should mock external LLM/API calls.
+
+chat:
+  auto_reply: true
