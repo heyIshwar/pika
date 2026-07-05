@@ -139,11 +139,27 @@ def optimize(agent_id: str = typer.Argument(...)):
 
 
 @cli.command("eval")
-def eval_cmd(agent_id: str = typer.Argument(...)):
-    """Run LangFuse evaluations for an agent."""
+def eval_cmd(
+    agent_id: str = typer.Argument(...),
+    live: bool = typer.Option(False, "--live", help="Run questions against the live agent (needs API key)"),
+    limit: int = typer.Option(None, "--limit", "-n"),
+    question_id: str = typer.Option(None, "--id"),
+    output_json: bool = typer.Option(False, "--output", help="Emit JSON results"),
+):
+    """Run YAML eval suite for an agent (agents/<id>/evals/questions.yaml)."""
     from pika.observability.eval import run_eval
 
-    asyncio.run(run_eval(agent_id))
+    code = asyncio.run(
+        run_eval(
+            agent_id,
+            live=live,
+            limit=limit,
+            question_id=question_id,
+            output_json=output_json,
+        )
+    )
+    if code:
+        raise typer.Exit(code=code)
 
 
 # ------------------------------------------------------------------

@@ -7,6 +7,11 @@ from agno.agent import Agent
 from agno.models.base import Model
 
 from pika.config.loader import get_config, get_settings
+from pika.core.agno_context import (
+    apply_knowledge_defaults,
+    collect_context_kwargs,
+    load_training_examples,
+)
 from pika.corrections.store import CorrectionStore
 from pika.infra.cache import CacheManager
 from pika.infra.db import get_llm_provider
@@ -83,16 +88,37 @@ class BaseAgent(Agent):
 
         if knowledge is not None:
             agent_kwargs["knowledge"] = knowledge
+        apply_knowledge_defaults(agent_kwargs, has_knowledge=knowledge is not None)
 
         # Merge tools: from config agent_kwargs + skill toolkits
         config_tools = agent_kwargs.pop("tools", []) or []
         all_tools = list(config_tools) + skill_toolkits
 
+        description = (
+            kwargs.pop("description", None)
+            or agent_kwargs.pop("description", None)
+            or getattr(self, "description", None)
+        )
+        instructions = (
+            kwargs.pop("instructions", None)
+            or agent_kwargs.pop("instructions", None)
+            or getattr(self, "instructions", None)
+        )
+
+        context_kwargs = collect_context_kwargs(self, agent_kwargs, kwargs)
+        if context_kwargs.get("additional_input") is None:
+            few_shot = load_training_examples(self.agent_id)
+            if few_shot:
+                context_kwargs["additional_input"] = few_shot
+
         super().__init__(
             model=model,
             db=db,
             name=self.agent_id,
+            description=description,
+            instructions=instructions,
             tools=all_tools if all_tools else None,
+            **context_kwargs,
             **agent_kwargs,
             **kwargs,
         )
@@ -242,7 +268,11 @@ class BaseAgent(Agent):
                                 output_parts.append(str(content))
                             yield chunk
                         if output_parts:
-                            combined = "".join(output_parts)[:500]
+                            combined = "".join(output_parts)
+                            from pika.observability.tracing import langfuse_otel_active
+
+                            if not langfuse_otel_active():
+                                combined = combined[:500]
                             s["output"] = combined
                             run["output"] = combined
 

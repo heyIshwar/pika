@@ -23,5 +23,12 @@ pika:
     langfuse_enabled: false
     otel_enabled: false
 
+  compat:
+    gemini_tool_names: false   # OpenRouter Gemini tool-name prefix fix
+
+  context:
+    timezone: UTC
+    relative_dates: true
+
   optimization:
     dspy_lm: openai/gpt-4o-mini

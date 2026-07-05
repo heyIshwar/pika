@@ -18,6 +18,9 @@ _user_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 _run_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "pika_run_id", default=None
 )
+_role: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "pika_role", default=None
+)
 
 
 def get_tenant_id() -> str | None:
@@ -58,3 +61,11 @@ def get_run_id() -> str | None:
 
 def set_run_id(run_id: str | None) -> contextvars.Token:
     return _run_id.set(run_id)
+
+
+def get_role() -> str | None:
+    return _role.get()
+
+
+def set_role(role: str | None) -> contextvars.Token:
+    return _role.set(role)

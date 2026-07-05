@@ -16,6 +16,14 @@ from pika.api.routes import agents, health, teams, traces
 
 
 def create_app(include_agent_routes: bool = True) -> FastAPI:
+    _maybe_install_compat()
+    try:
+        from pika.observability.langfuse_otel import install_langfuse_otel
+
+        install_langfuse_otel()
+    except Exception:
+        pass
+
     app = FastAPI(
         title="Pika Agent Framework",
         description="REST API for pika agents and teams",
@@ -32,6 +40,18 @@ def create_app(include_agent_routes: bool = True) -> FastAPI:
         app.include_router(teams.router)
 
     return app
+
+
+def _maybe_install_compat() -> None:
+    try:
+        from pika.config.loader import get_settings
+
+        if get_settings().get("compat", {}).get("gemini_tool_names"):
+            from pika.compat.gemini import install as install_gemini_compat
+
+            install_gemini_compat()
+    except Exception:
+        pass
 
 
 def create_os():
@@ -54,6 +74,7 @@ def create_os():
 
     from pika.cli.commands.loader import load_all_agents, load_all_teams
     from pika.infra.storage import get_storage
+    from pika.observability.langfuse_otel import install_langfuse_otel
 
     # Must happen before load_all_agents()/load_all_teams(): agent __init__
     # builds a Langfuse client immediately, which reads credentials from
@@ -63,6 +84,9 @@ def create_os():
         load_dotenv()
     except ImportError:
         pass
+
+    _maybe_install_compat()
+    install_langfuse_otel()
 
     pika_agents = load_all_agents()
     pika_teams = load_all_teams()

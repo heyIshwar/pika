@@ -37,8 +37,13 @@ class BaseSkill:
         """Return an Agno-compatible Toolkit wrapping this skill's tools."""
         from agno.tools.toolkit import Toolkit
 
+        tool_instructions = getattr(self, "tool_instructions", None)
+        if tool_instructions is None and self.description:
+            tool_instructions = [self.description]
+
         return Toolkit(
             name=self.skill_id,
             tools=self.get_tools(),
-            instructions=self.description or None,
+            instructions=tool_instructions,
+            add_instructions=bool(tool_instructions),
         )

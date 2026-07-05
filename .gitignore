@@ -13,4 +13,5 @@ build/
 .venv/
 venv/
 
+vendor/
 config/overrides/

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 class RunRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None  # deprecated: prefer X-User-ID header / auth context
     context: Dict[str, Any] = {}
 
 

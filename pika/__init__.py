@@ -1,6 +1,6 @@
 """pika — opinionated multi-agent framework on Agno."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from pika.core import BaseAgent, BaseSkill, BaseTeam, BaseTool
 from pika.orchestration import OrchestratorAgent

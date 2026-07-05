@@ -29,8 +29,14 @@ def get_embedder(name: str = "openai"):
         return OllamaEmbedder()
     if name == "sentence_transformer":
         from agno.knowledge.embedder.sentence_transformer import SentenceTransformerEmbedder
+        from pika.infra.embedder_model import (
+            resolve_sentence_transformer_model_path,
+            use_offline_hub_when_local,
+        )
 
-        return SentenceTransformerEmbedder()
+        model_path = resolve_sentence_transformer_model_path()
+        use_offline_hub_when_local(model_path)
+        return SentenceTransformerEmbedder(id=model_path)
     raise ValueError(f"Unknown embedder: {name!r}. Use 'openai', 'ollama', or 'sentence_transformer'")
 
 

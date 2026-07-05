@@ -38,6 +38,16 @@ def langfuse_enabled() -> bool:
         return False
 
 
+def langfuse_otel_active() -> bool:
+    """True when Agno OpenInference OTLP export to Langfuse is installed."""
+    try:
+        from pika.observability.langfuse_otel import langfuse_otel_active as active
+
+        return active()
+    except ImportError:
+        return False
+
+
 def otel_enabled() -> bool:
     env = os.getenv("OTEL_ENABLED", "").lower()
     if env == "true":
@@ -62,7 +72,8 @@ class Tracer:
     def __init__(self, component: str, db=None):
         self._component = component
         self._db = db
-        self._lf = self._build_langfuse() if langfuse_enabled() else None
+        use_lf_sdk = langfuse_enabled() and not langfuse_otel_active()
+        self._lf = self._build_langfuse() if use_lf_sdk else None
         self._otel = self._build_otel() if otel_enabled() else None
 
     # ------------------------------------------------------------------
@@ -84,8 +95,9 @@ class Tracer:
         Propagates user_id, session_id, run_id, and pika_trace_id to all child spans.
         Must wrap the whole run before any span() calls.
         """
-        trace_id = str(uuid4())
-        set_trace_id(trace_id)
+        trace_id = get_trace_id() or str(uuid4())
+        if get_trace_id() is None:
+            set_trace_id(trace_id)
         set_session_id(session_id)
         set_user_id(user_id)
         set_run_id(run_id)

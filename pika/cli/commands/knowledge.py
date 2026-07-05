@@ -16,13 +16,28 @@ knowledge_app = typer.Typer(help="Ingest content into an agent's knowledge base 
 def add(
     agent_id: str = typer.Argument(..., help="Agent id whose knowledge base to update"),
     path: str = typer.Option(..., "--path", "-p", help="File, directory, or URL to ingest"),
+    fmt: str = typer.Option("auto", "--format", "-f", help="Ingest format: auto, okf"),
 ):
-    """Ingest a file, directory, or URL (existing docs/infra) into an agent's knowledge base."""
+    """Ingest a file, directory, or URL into an agent's knowledge base."""
     import asyncio
+    import pathlib
 
     from pika.knowledge import ingest_path
 
     console.print(f"[bold purple]pika knowledge add[/bold purple] {agent_id} <- {path}")
+    if fmt == "okf":
+        from pika.knowledge.ingest import _knowledge_for
+        from pika.knowledge.okf import ingest_okf_bundle
+
+        async def _okf():
+            kb = _knowledge_for(agent_id)
+            count = await ingest_okf_bundle(kb, [pathlib.Path(path)])
+            return count
+
+        n = asyncio.run(_okf())
+        console.print(f"  [green]✓[/green] ingested {n} OKF concept(s)")
+        return
+
     asyncio.run(ingest_path(agent_id, path))
     console.print("  [green]✓[/green] ingested")
 

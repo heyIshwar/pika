@@ -1,0 +1,12 @@
+questions:
+  - id: smoke_greeting
+    input: "Say hello in one short sentence."
+    expect_contains: ["hello", "hi", "hey"]
+    context:
+      role: demo_user
+
+  - id: smoke_identity
+    input: "What is your name or purpose in one sentence?"
+    forbid_patterns:
+      - "I cannot"
+      - "I can't help"

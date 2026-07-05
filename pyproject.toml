@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pika-agents"
-version = "0.2.0"
+version = "0.3.0"
 description = "Opinionated multi-agent framework built on Agno"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -27,7 +27,13 @@ dependencies = [
 redis = ["redis[asyncio]>=5"]
 postgres = ["psycopg[binary]>=3.1", "pgvector>=0.3"]
 dspy = ["dspy-ai>=2.5"]
-langfuse = ["langfuse>=3"]
+embedder = ["sentence-transformers>=3"]
+langfuse = [
+    "langfuse>=3",
+    "openinference-instrumentation-agno",
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp",
+]
 otel = ["opentelemetry-sdk", "opentelemetry-exporter-otlp"]
 dev = ["pytest", "pytest-asyncio", "httpx", "ruff", "pre-commit", "langfuse>=3", "python-dotenv"]
 all = [
@@ -35,8 +41,10 @@ all = [
     "psycopg[binary]>=3.1",
     "pgvector>=0.3",
     "langfuse>=3",
+    "openinference-instrumentation-agno",
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp",
+    "sentence-transformers>=3",
 ]
 
 [project.scripts]

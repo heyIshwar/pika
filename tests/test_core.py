@@ -15,6 +15,16 @@ def test_registry_valid():
     validate_registry()
 
 
+def test_base_agent_forwards_class_description(monkeypatch):
+    """Agno Agent.__init__ must not wipe subclass description/instructions."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    from agents.getting_started.agent import GettingStartedAgent
+
+    agent = GettingStartedAgent()
+    assert agent.description
+    assert agent.instructions
+
+
 @pytest.mark.asyncio
 async def test_cache_roundtrip():
     cache = CacheManager()
