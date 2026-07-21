@@ -32,7 +32,9 @@ class BaseTeam(Team):
         model: Optional[Model] = kwargs.pop("model", None) or self._resolve_model(cfg)
         members = kwargs.pop("members", None)
         team_kwargs = cfg.get("team_kwargs", {})
-        super().__init__(model=model, db=db, members=members, **team_kwargs, **kwargs)
+        super().__init__(
+            model=model, db=db, members=members, id=self.team_id, name=self.team_id, **team_kwargs, **kwargs
+        )
         self.orch_mode: str = cfg.get("orch_mode", "route")
 
     def _resolve_model(self, cfg: dict) -> Model:

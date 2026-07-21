@@ -114,6 +114,7 @@ class BaseAgent(Agent):
         super().__init__(
             model=model,
             db=db,
+            id=self.agent_id,
             name=self.agent_id,
             description=description,
             instructions=instructions,
