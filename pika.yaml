@@ -19,6 +19,18 @@ pika:
     num_history_runs: 5
     search_past_sessions: false
 
+  # Serve AgentOS over MCP so an external shell (e.g. Hermes gateway:
+  # Telegram/WhatsApp/cron) can call pika agents. See docs/hermes-bridge.md.
+  mcp:
+    enabled: false
+
+  # Agno AgentOS cron scheduler (SchedulePoller). Schedules POST to the
+  # AgentOS run endpoint, so the agent must be served (`pika serve`).
+  scheduler:
+    enabled: false
+    poll_interval: 15
+    default_timezone: UTC
+
   observability:
     langfuse_enabled: false
     otel_enabled: false

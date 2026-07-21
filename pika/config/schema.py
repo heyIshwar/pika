@@ -43,6 +43,28 @@ class AgnoGlobalConfig(BaseModel):
     enable_agentic_state: bool = False
 
 
+class SchedulerConfig(BaseModel):
+    """Agno AgentOS cron scheduler (SchedulePoller)."""
+
+    enabled: bool = False
+    poll_interval: int = 15
+    default_timezone: str = "Asia/Kolkata"
+    base_url: Optional[str] = None
+
+
+class HermesCompatConfig(BaseModel):
+    """Hermes / agentskills compatibility settings."""
+
+    skills_dirs: List[str] = []
+    credentials_dir: Optional[str] = None
+
+
+class McpConfig(BaseModel):
+    """Expose AgentOS over MCP so external shells (e.g. Hermes) can drive pika agents."""
+
+    enabled: bool = False
+
+
 class PikaSettings(BaseModel):
     default_agent: str = "orchestrator"
     database: DatabaseConfig = DatabaseConfig()
@@ -51,6 +73,10 @@ class PikaSettings(BaseModel):
     observability: ObservabilityConfig = ObservabilityConfig()
     optimization: OptimizationConfig = OptimizationConfig()
     agno: AgnoGlobalConfig = AgnoGlobalConfig()
+    scheduler: SchedulerConfig = SchedulerConfig()
+    hermes: HermesCompatConfig = HermesCompatConfig()
+    mcp: McpConfig = McpConfig()
+    credentials_dir: Optional[str] = None
 
     model_config = {"extra": "allow"}
 

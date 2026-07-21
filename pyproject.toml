@@ -35,6 +35,7 @@ langfuse = [
     "opentelemetry-exporter-otlp",
 ]
 otel = ["opentelemetry-sdk", "opentelemetry-exporter-otlp"]
+mcp = ["fastmcp>=2"]
 dev = ["pytest", "pytest-asyncio", "httpx", "ruff", "pre-commit", "langfuse>=3", "python-dotenv"]
 all = [
     "redis[asyncio]>=5",
@@ -45,6 +46,7 @@ all = [
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp",
     "sentence-transformers>=3",
+    "fastmcp>=2",
 ]
 
 [project.scripts]

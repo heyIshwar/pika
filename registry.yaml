@@ -23,3 +23,7 @@ skills:
   - id: database
     owner: pika-core
     path: skills/database/skill.py
+
+  - id: scheduler
+    owner: pika-core
+    path: skills/scheduler/skill.py

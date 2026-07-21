@@ -99,6 +99,34 @@ def create_os():
             seen_ids.add(id(kb))
             knowledge_bases.append(kb)
 
+    from pika.config.loader import get_settings
+
+    settings = get_settings()
+    sched = settings.get("scheduler") or {}
+    scheduler_enabled = bool(sched.get("enabled", False))
+    scheduler_kwargs: dict = {}
+    if scheduler_enabled:
+        scheduler_kwargs = {
+            "scheduler": True,
+            "scheduler_poll_interval": int(sched.get("poll_interval", 15)),
+        }
+        base_url = sched.get("base_url")
+        if base_url:
+            scheduler_kwargs["scheduler_base_url"] = base_url
+
+    # Serving MCP lets an external chat shell (Hermes gateway: Telegram/WhatsApp/cron)
+    # drive pika agents via run_agent/run_team instead of re-implementing them.
+    # See docs/hermes-bridge.md.
+    mcp_enabled = bool((settings.get("mcp") or {}).get("enabled", False))
+    if mcp_enabled:
+        try:
+            import fastmcp  # noqa: F401
+        except ImportError as exc:
+            raise RuntimeError(
+                "pika.mcp.enabled is true but fastmcp is not installed. "
+                "Install it with: pip install 'pika-agents[mcp]'"
+            ) from exc
+
     agent_os = AgentOS(
         id="pika",
         name="Pika Agent Framework",
@@ -108,5 +136,7 @@ def create_os():
         teams=pika_teams or None,
         knowledge=knowledge_bases or None,
         base_app=create_app(include_agent_routes=False),
+        enable_mcp_server=mcp_enabled,
+        **scheduler_kwargs,
     )
     return agent_os.get_app()
