@@ -4,6 +4,17 @@ from agents.research_agent.agent import ResearchAgent
 from pika.testing.harness import AgentTestHarness
 
 
+@pytest.fixture(autouse=True)
+def _database_tool_config(monkeypatch):
+    """ResearchAgent ships a DatabaseSkill; DatabaseTool now refuses to start
+    without an explicit `db_url` (control-plane guard). Point it at in-memory
+    SQLite for these tests."""
+    monkeypatch.setattr(
+        "pika.core.tool.get_config",
+        lambda section, key: {"db_url": "sqlite:///:memory:"},
+    )
+
+
 @pytest.fixture
 def harness():
     return AgentTestHarness(

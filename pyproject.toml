@@ -64,4 +64,8 @@ line-length = 100
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# agents/**/tests import via `agents.<id>...`; only `pika` is pip-installed,
+# so put the project root on sys.path for test collection.
+pythonpath = ["."]
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests", "agents"]
