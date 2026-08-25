@@ -1,7 +1,6 @@
 """Auth middleware fail-closed behavior."""
 from __future__ import annotations
 
-import os
 
 import pytest
 from starlette.testclient import TestClient

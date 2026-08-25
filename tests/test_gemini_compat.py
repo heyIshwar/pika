@@ -1,7 +1,6 @@
 """Regression test for Gemini-via-OpenRouter tool-name namespace prefix bug."""
 import importlib
 
-from pika.compat.gemini import install
 
 
 def _fresh_get_function_call():

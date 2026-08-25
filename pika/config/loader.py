@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 import yaml
-import pathlib
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from pika.config.resolution import resolve_config_root, cwd_changed, flat_config_path
 
 if TYPE_CHECKING:
-    from pika.core.agent import BaseAgent
-    from pika.core.team import BaseTeam
+    pass
 
 Runner = "BaseAgent | BaseTeam"
 

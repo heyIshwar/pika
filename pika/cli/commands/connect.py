@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import pathlib
 import re
-import textwrap
 
 import typer
 from rich.console import Console

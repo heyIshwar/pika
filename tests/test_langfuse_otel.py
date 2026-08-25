@@ -1,5 +1,4 @@
 """Langfuse OTEL setup tests."""
-import os
 
 from pika.observability import langfuse_otel
 
