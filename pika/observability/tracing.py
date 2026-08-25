@@ -48,6 +48,24 @@ def langfuse_otel_active() -> bool:
         return False
 
 
+def trace_full_content_enabled() -> bool:
+    """Opt-in to sending untruncated span input/output everywhere.
+
+    Default (false) truncates to 500 chars consistently across the local
+    span DB record *and* Langfuse (SDK or OTEL export) — previously only the
+    DB record was truncated, so full message content still reached Langfuse
+    via the SDK path. Set PIKA_TRACE_FULL_CONTENT=true to disable truncation.
+    """
+    return os.getenv("PIKA_TRACE_FULL_CONTENT", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def truncate_trace_content(value: Any, limit: int = 500) -> Any:
+    if value is None:
+        return None
+    text = value if isinstance(value, str) else str(value)
+    return text if trace_full_content_enabled() else text[:limit]
+
+
 def otel_enabled() -> bool:
     env = os.getenv("OTEL_ENABLED", "").lower()
     if env == "true":
@@ -195,7 +213,7 @@ class Tracer:
                 lf_ctx = self._lf.start_as_current_observation(
                     as_type=self._lf_observation_type(kind),
                     name=lf_name,
-                    input=input,
+                    input=truncate_trace_content(input),
                     metadata=span_data.get("attributes", {}),
                 )
                 lf_span = lf_ctx.__enter__()
@@ -234,8 +252,8 @@ class Tracer:
                 duration_ms=duration_ms,
                 attributes={
                     **span_data["attributes"],
-                    "input": str(input)[:500] if input is not None else None,
-                    "output": str(span_data.get("output", ""))[:500],
+                    "input": truncate_trace_content(input),
+                    "output": truncate_trace_content(span_data.get("output", "")),
                 },
                 created_at=datetime.now(timezone.utc),
             )
@@ -248,7 +266,7 @@ class Tracer:
             if lf_span:
                 try:
                     lf_span.update(
-                        output=span_data.get("output"),
+                        output=truncate_trace_content(span_data.get("output")),
                         status_message=span_data.get("error"),
                         level="ERROR" if span_data["status"] == "ERROR" else None,
                     )

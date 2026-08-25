@@ -10,12 +10,24 @@ try:
 except ImportError:
     pass
 
+import logging
+import os
+
 import pika
-from pika.api.middleware import AuthMiddleware, TenantMiddleware
+from pika.api.middleware import AuthMiddleware, TenantMiddleware, is_production
 from pika.api.routes import agents, health, teams, traces
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(include_agent_routes: bool = True) -> FastAPI:
+    if is_production() and not os.getenv("PIKA_API_KEY"):
+        logger.critical(
+            "PIKA_ENV=production but PIKA_API_KEY is not set. AuthMiddleware will "
+            "reject every non-health request with 503 until PIKA_API_KEY is "
+            "configured (e.g. `fly secrets set PIKA_API_KEY=...`)."
+        )
+
     _maybe_install_compat()
     try:
         from pika.observability.langfuse_otel import install_langfuse_otel
@@ -72,7 +84,7 @@ def create_os():
     """
     from agno.os import AgentOS
 
-    from pika.cli.commands.loader import load_all_agents, load_all_teams
+    from pika.cli.commands.loader import assert_default_agent_loaded, load_all_agents, load_all_teams
     from pika.infra.storage import get_storage
     from pika.observability.langfuse_otel import install_langfuse_otel
 
@@ -90,6 +102,7 @@ def create_os():
 
     pika_agents = load_all_agents()
     pika_teams = load_all_teams()
+    assert_default_agent_loaded(pika_agents, pika_teams)
 
     knowledge_bases = []
     seen_ids = set()

@@ -1,12 +1,14 @@
 """Trace routes — reads from Agno's DB trace/span tables."""
 from __future__ import annotations
 
+import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
 from pika.api.schemas import SpanInfo, TraceInfo
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/traces", tags=["traces"])
 
 
@@ -25,7 +27,8 @@ async def list_traces(
     try:
         traces, _ = db.get_traces(agent_id=agent_id, limit=limit)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.exception("Failed to list traces")
+        raise HTTPException(status_code=500, detail="Failed to list traces") from exc
 
     result = []
     for t in traces:
@@ -58,7 +61,8 @@ async def get_trace_spans(trace_id: str):
     try:
         spans = db.get_spans(trace_id=trace_id)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.exception("Failed to get spans for %s", trace_id)
+        raise HTTPException(status_code=500, detail="Failed to get spans") from exc
 
     result = []
     for span in spans:

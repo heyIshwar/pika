@@ -59,6 +59,12 @@ def _render_template(content: str, name: str, class_name: str) -> str:
 
 
 def scaffold(kind: str, name: str):
+    import re
+
+    if not re.fullmatch(r"[a-zA-Z0-9_]+", name or ""):
+        raise ValueError(
+            f"Invalid name '{name}': use only letters, digits, and underscore"
+        )
     if kind == "agent":
         base = pathlib.Path("agents") / name
         class_name = "".join(w.capitalize() for w in name.split("_")) + "Agent"

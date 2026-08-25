@@ -9,6 +9,8 @@ services:
     envVars:
       - key: PIKA_ENV
         value: production
+      - key: PIKA_API_KEY
+        sync: false   # required in production (fail-closed auth)
       - key: OPENAI_API_KEY
         sync: false
       - key: DATABASE_URL

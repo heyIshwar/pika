@@ -270,10 +270,11 @@ class BaseAgent(Agent):
                             yield chunk
                         if output_parts:
                             combined = "".join(output_parts)
-                            from pika.observability.tracing import langfuse_otel_active
+                            # Same truncation policy as Tracer.span() — consistent
+                            # across DB spans and Langfuse (SDK or OTEL export).
+                            from pika.observability.tracing import truncate_trace_content
 
-                            if not langfuse_otel_active():
-                                combined = combined[:500]
+                            combined = truncate_trace_content(combined)
                             s["output"] = combined
                             run["output"] = combined
 

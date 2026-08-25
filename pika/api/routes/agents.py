@@ -1,35 +1,20 @@
 """Agent routes: list, run, stream."""
 from __future__ import annotations
 
+import logging
 import time
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from pika.api.run_helpers import run_kwargs
 from pika.api.schemas import AgentInfo, RunRequest, RunResponse
-from pika.api.streaming import namespaced_session_id, stream_agent_json
-from pika.core.agno_context import build_user_dependencies
-from pika.core.context import get_trace_id, get_user_id
+from pika.api.streaming import sse_event, stream_agent_json
+from pika.core.context import get_trace_id
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agents", tags=["agents"])
-
-
-def _run_kwargs(req: RunRequest) -> dict:
-    kwargs: dict = {}
-    if req.session_id:
-        kwargs["session_id"] = namespaced_session_id(req.session_id)
-    # Prefer authenticated context over client-supplied body user_id
-    ctx_user = get_user_id()
-    if ctx_user:
-        kwargs["user_id"] = ctx_user
-    elif req.user_id:
-        kwargs["user_id"] = req.user_id
-    deps = build_user_dependencies(req.context or None)
-    if deps:
-        kwargs["dependencies"] = deps
-        kwargs["add_dependencies_to_context"] = True
-    return kwargs
 
 
 @router.get("", response_model=list[AgentInfo])
@@ -54,13 +39,21 @@ async def run_agent(agent_id: str, req: RunRequest):
 
     try:
         agent = load_agent(agent_id)
-    except (ModuleNotFoundError, ValueError) as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Agent not found") from exc
+    except (ModuleNotFoundError, RuntimeError) as exc:
+        logger.exception("Failed to load agent %s", agent_id)
+        raise HTTPException(status_code=404, detail="Agent not found") from exc
 
     run_id = str(uuid4())
     start = time.monotonic()
 
-    result = await agent.run(req.message, **_run_kwargs(req))
+    try:
+        result = await agent.run(req.message, **run_kwargs(req))
+    except Exception as exc:
+        logger.exception("Agent run failed: %s", agent_id)
+        raise HTTPException(status_code=500, detail="Agent run failed") from exc
+
     output = result.content if hasattr(result, "content") else str(result)
     duration_ms = int((time.monotonic() - start) * 1000)
 
@@ -79,19 +72,27 @@ async def stream_agent(agent_id: str, req: RunRequest):
 
     try:
         agent = load_agent(agent_id)
-    except (ModuleNotFoundError, ValueError) as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    except (ModuleNotFoundError, ValueError, RuntimeError) as exc:
+        logger.exception("Failed to load agent %s", agent_id)
+        raise HTTPException(status_code=404, detail="Agent not found") from exc
 
-    kwargs = _run_kwargs(req)
+    kwargs = run_kwargs(req)
 
     async def event_stream():
-        async for frame in stream_agent_json(
-            agent,
-            req.message,
-            session_id=kwargs.get("session_id"),
-            extra_dependencies=kwargs.get("dependencies"),
-        ):
-            yield frame
+        try:
+            async for frame in stream_agent_json(
+                agent,
+                req.message,
+                session_id=kwargs.get("session_id"),
+                extra_dependencies=kwargs.get("dependencies"),
+            ):
+                yield frame
+        except Exception:
+            # Headers/status are already sent for an SSE response, so a mid-stream
+            # failure can't become an HTTPException — log server-side and emit a
+            # generic error frame instead of leaking the exception to the client.
+            logger.exception("Agent stream failed: %s", agent_id)
+            yield sse_event({"type": "error", "message": "Stream failed. Check server logs for details."})
 
     return StreamingResponse(
         event_stream(),

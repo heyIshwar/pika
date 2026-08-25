@@ -64,12 +64,20 @@ class CorrectionStore:
                 pass
 
         with Session(get_engine()) as session:
-            rows = session.scalars(
-                select(AgentCorrection).where(
-                    AgentCorrection.agent_id == self.agent_id,
-                    AgentCorrection.active.is_(True),
-                )
-            ).all()
+            try:
+                from pika.core.context import get_tenant_id
+
+                tenant = self.tenant_id if self.tenant_id is not None else get_tenant_id()
+            except Exception:
+                tenant = self.tenant_id
+
+            clauses = [
+                AgentCorrection.agent_id == self.agent_id,
+                AgentCorrection.active.is_(True),
+            ]
+            if tenant:
+                clauses.append(AgentCorrection.tenant_id == tenant)
+            rows = session.scalars(select(AgentCorrection).where(*clauses)).all()
 
         scored = [
             (self._overlap_score(query, f"{r.intent}: {r.correction}"), r)
@@ -83,10 +91,16 @@ class CorrectionStore:
         ]
 
     async def add(self, intent: str, correction: str) -> AgentCorrection:
+        try:
+            from pika.core.context import get_tenant_id
+
+            tenant = self.tenant_id if self.tenant_id is not None else get_tenant_id()
+        except Exception:
+            tenant = self.tenant_id
         with Session(get_engine()) as session:
             rec = AgentCorrection(
                 agent_id=self.agent_id,
-                tenant_id=self.tenant_id,
+                tenant_id=tenant,
                 intent=intent,
                 correction=correction,
             )

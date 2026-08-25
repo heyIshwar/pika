@@ -1,2 +1,7 @@
-# db_url: postgresql://user:pass@host:5432/existing_db   # defaults to pika's own DATABASE_URL
+# Point at an existing app DB — do NOT use pika's control-plane DB by default.
+# db_url: postgresql://user:pass@host:5432/existing_db
 # schema: public
+#
+# Opt-in only:
+# allow_control_plane_db: false   # true = allow SQLTools on pika's DATABASE_URL
+# enable_run_sql_query: false     # true = expose read-only SELECT/WITH/SHOW/...

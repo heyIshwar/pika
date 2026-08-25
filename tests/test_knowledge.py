@@ -63,4 +63,19 @@ def test_database_skill_exposes_sql_tools(monkeypatch):
 
     tools = DatabaseSkill().get_tools()
     names = {t.__name__ for t in tools}
+    # run_sql_query is opt-in (enable_run_sql_query: true)
+    assert names == {"list_tables", "describe_table"}
+
+
+def test_database_skill_exposes_run_sql_when_enabled(monkeypatch):
+    monkeypatch.setattr(
+        "pika.core.tool.get_config",
+        lambda section, key: {
+            "db_url": "sqlite:///:memory:",
+            "enable_run_sql_query": True,
+        },
+    )
+
+    tools = DatabaseSkill().get_tools()
+    names = {t.__name__ for t in tools}
     assert names == {"list_tables", "describe_table", "run_sql_query"}

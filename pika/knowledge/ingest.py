@@ -6,10 +6,25 @@ system, it lets an agent semantically search over it.
 """
 from __future__ import annotations
 
+import ipaddress
+import logging
+import socket
+from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 from pika.config.loader import get_config
 from pika.infra.db import get_engine, get_knowledge
+
+logger = logging.getLogger(__name__)
+
+_BLOCKED_HOSTS = frozenset(
+    {
+        "metadata.google.internal",
+        "metadata.google.com",
+        "169.254.169.254",
+    }
+)
 
 
 def _knowledge_for(agent_id: str):
@@ -22,6 +37,58 @@ def _knowledge_for(agent_id: str):
     )
 
 
+def _is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    return bool(
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+    )
+
+
+def validate_ingest_url(url: str) -> None:
+    """Reject non-http(s) and URLs resolving to private/link-local/metadata hosts."""
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("Only http(s) URLs are allowed for ingest")
+    host = (parsed.hostname or "").lower()
+    if not host:
+        raise ValueError("URL missing host")
+    if host in _BLOCKED_HOSTS or host.endswith(".internal"):
+        raise ValueError(f"Blocked host for ingest: {host}")
+
+    try:
+        infos = socket.getaddrinfo(host, parsed.port or 80, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise ValueError(f"Could not resolve host: {host}") from exc
+
+    for info in infos:
+        ip_str = info[4][0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            continue
+        if _is_blocked_ip(ip):
+            raise ValueError(f"Blocked private/link-local address for ingest: {ip}")
+
+
+def validate_ingest_path(path: str, sandbox: Path | None = None) -> Path:
+    """Require local paths to resolve under project sandbox (cwd by default)."""
+    root = (sandbox or Path.cwd()).resolve()
+    target = Path(path).expanduser().resolve()
+    try:
+        target.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(
+            f"Path '{path}' is outside the project sandbox ({root})"
+        ) from exc
+    if not target.exists():
+        raise ValueError(f"Path does not exist: {target}")
+    return target
+
+
 async def ingest_path(agent_id: str, path: str) -> None:
     """Ingest a file, directory, or URL into an agent's knowledge base.
 
@@ -30,9 +97,13 @@ async def ingest_path(agent_id: str, path: str) -> None:
     """
     knowledge = _knowledge_for(agent_id)
     if path.startswith("http://") or path.startswith("https://"):
+        validate_ingest_url(path)
         await knowledge.ainsert(url=path, metadata={"source": "url", "agent_id": agent_id})
     else:
-        await knowledge.ainsert(path=path, metadata={"source": "path", "agent_id": agent_id})
+        safe = validate_ingest_path(path)
+        await knowledge.ainsert(
+            path=str(safe), metadata={"source": "path", "agent_id": agent_id}
+        )
 
 
 async def ingest_database_schema(agent_id: str, db_url: Optional[str] = None) -> int:

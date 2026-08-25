@@ -1,5 +1,7 @@
 # fly deploy — from repo root
-# fly secrets set OPENAI_API_KEY=sk-...
+# Required secrets (never commit):
+#   fly secrets set OPENAI_API_KEY=sk-...
+#   fly secrets set PIKA_API_KEY=...   # required: production fail-closed auth
 
 app = "pika-agents"
 primary_region = "iad"

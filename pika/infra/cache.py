@@ -18,7 +18,15 @@ class CacheManager:
             self._redis = aioredis.from_url(REDIS_URL, decode_responses=True)
 
     def _key(self, agent_id: str, message: str) -> str:
-        raw = f"{agent_id}::{message}"
+        try:
+            from pika.core.context import get_tenant_id, get_user_id
+
+            tenant = get_tenant_id() or ""
+            user = get_user_id() or ""
+        except Exception:
+            tenant = ""
+            user = ""
+        raw = f"{agent_id}::{tenant}::{user}::{message}"
         return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
     async def get(self, agent_id: str, message: str) -> Optional[Any]:
@@ -41,7 +49,8 @@ class CacheManager:
             await self._redis.set(key, json.dumps(payload, default=str), ex=ttl)
 
     async def invalidate(self, agent_id: str):
-        prefix = hashlib.sha256(f"{agent_id}::".encode()).hexdigest()[:8]
-        to_del = [k for k in self._mem if k.startswith(prefix)]
-        for key in to_del:
-            del self._mem[key]
+        # Keys are full hashes; drop all L1 entries for this process when asked.
+        self._mem.clear()
+        if self._redis:
+            # L2: best-effort — full namespace scan is expensive; skip.
+            pass

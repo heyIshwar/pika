@@ -185,6 +185,10 @@ pika serve --port 8080
 - `pika serve --no-os`: pika-only routes with JSON SSE (`/agents/{id}/stream`)
 
 Identity headers (dev): `X-User-ID`, `X-Tenant-ID`, `X-Role`. Prefer auth context over body `user_id`.
+Trusted by default outside production; set `PIKA_TRUST_IDENTITY_HEADERS=false` to always ignore them (default in production).
+
+**Auth**: set `PIKA_API_KEY` and send it as `X-Pika-Key` on every request except `/health`.
+When `PIKA_ENV=production` and `PIKA_API_KEY` is unset, all non-health requests are rejected with 503 (fail-closed) instead of running unauthenticated.
 
 ## Observability
 
