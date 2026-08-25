@@ -28,6 +28,8 @@ def create_app(include_agent_routes: bool = True) -> FastAPI:
             "configured (e.g. `fly secrets set PIKA_API_KEY=...`)."
         )
 
+    _validate_settings_at_startup()
+
     _maybe_install_compat()
     try:
         from pika.observability.langfuse_otel import install_langfuse_otel
@@ -52,6 +54,22 @@ def create_app(include_agent_routes: bool = True) -> FastAPI:
         app.include_router(teams.router)
 
     return app
+
+
+def _validate_settings_at_startup() -> None:
+    """Surface broken pika.yaml at boot instead of mid-request.
+
+    Production fails fast; non-production warns and continues so local
+    experimentation with quirky configs isn't blocked.
+    """
+    from pika.config.loader import get_validated_settings
+
+    try:
+        get_validated_settings()
+    except Exception as exc:
+        if is_production():
+            raise RuntimeError(f"Invalid pika configuration: {exc}") from exc
+        logger.warning("pika.yaml validation issue (non-production): %s", exc)
 
 
 def _maybe_install_compat() -> None:
