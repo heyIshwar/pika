@@ -13,7 +13,7 @@ from pika.core.agno_context import (
     load_training_examples,
 )
 from pika.corrections.store import CorrectionStore
-from pika.infra.cache import CacheManager
+from pika.infra.cache import CacheManager, CachedResponse
 from pika.infra.db import get_llm_provider
 from pika.infra.storage import get_storage
 from pika.observability.model import SpanKind
@@ -269,14 +269,22 @@ class BaseAgent(Agent):
                                 output_parts.append(str(content))
                             yield chunk
                         if output_parts:
-                            combined = "".join(output_parts)
+                            full_output = "".join(output_parts)
                             # Same truncation policy as Tracer.span() — consistent
                             # across DB spans and Langfuse (SDK or OTEL export).
                             from pika.observability.tracing import truncate_trace_content
 
-                            combined = truncate_trace_content(combined)
-                            s["output"] = combined
-                            run["output"] = combined
+                            truncated = truncate_trace_content(full_output)
+                            s["output"] = truncated
+                            run["output"] = truncated
+                            if self._cache:
+                                # The streaming path used to read the cache but never
+                                # fill it — streamed answers were cache-invisible.
+                                await self._cache.set(
+                                    self.agent_id,
+                                    trace_input,
+                                    CachedResponse(content=full_output),
+                                )
 
                     self._state = AgentState.DONE
 
