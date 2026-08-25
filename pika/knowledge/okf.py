@@ -5,6 +5,8 @@ import pathlib
 
 import yaml
 
+from pika.knowledge.ingest import IngestReport
+
 OKF_RESERVED_FILENAMES = frozenset({"index.md", "log.md"})
 
 
@@ -23,17 +25,23 @@ def parse_okf_file(path: pathlib.Path) -> dict | None:
     return {"meta": meta, "body": parts[2].strip()}
 
 
-async def ingest_okf_bundle(kb, directories: list[pathlib.Path]) -> int:
-    """Ingest OKF concept markdown files from one or more directories."""
-    count = 0
+async def ingest_okf_bundle(kb, directories: list[pathlib.Path]) -> IngestReport:
+    """Ingest OKF concept markdown files from one or more directories.
+
+    Non-OKF / reserved files are skipped; a failed insert records the failure
+    and continues instead of aborting the remaining files.
+    """
+    report = IngestReport()
     for directory in directories:
         if not directory.exists():
             continue
         for path in sorted(directory.glob("*.md")):
             if path.name in OKF_RESERVED_FILENAMES:
+                report.skipped.append(str(path))
                 continue
             parsed = parse_okf_file(path)
             if parsed is None:
+                report.skipped.append(str(path))
                 continue
             meta = parsed["meta"]
             entry_type = meta.get("type", "unknown")
@@ -44,15 +52,18 @@ async def ingest_okf_bundle(kb, directories: list[pathlib.Path]) -> int:
                 f"{meta.get('description', '')}\n\n"
                 f"{parsed['body']}"
             )
-            await kb.ainsert(
-                name=f"okf:{entry_type}:{title}",
-                text_content=text,
-                metadata={
-                    "kind": "okf",
-                    "type": entry_type,
-                    "title": title,
-                    "tags": meta.get("tags") or [],
-                },
-            )
-            count += 1
-    return count
+            try:
+                await kb.ainsert(
+                    name=f"okf:{entry_type}:{title}",
+                    text_content=text,
+                    metadata={
+                        "kind": "okf",
+                        "type": entry_type,
+                        "title": title,
+                        "tags": meta.get("tags") or [],
+                    },
+                )
+                report.ok.append(title)
+            except Exception as exc:
+                report.record_failure(str(path), exc)
+    return report

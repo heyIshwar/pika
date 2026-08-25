@@ -31,15 +31,30 @@ def add(
 
         async def _okf():
             kb = _knowledge_for(agent_id)
-            count = await ingest_okf_bundle(kb, [pathlib.Path(path)])
-            return count
+            return await ingest_okf_bundle(kb, [pathlib.Path(path)])
 
-        n = asyncio.run(_okf())
-        console.print(f"  [green]✓[/green] ingested {n} OKF concept(s)")
+        report = asyncio.run(_okf())
+        console.print(f"  [green]✓[/green] ingested {report.ok_count} OKF concept(s)")
+        if report.skipped:
+            console.print(f"  [dim]skipped {len(report.skipped)} non-OKF/reserved file(s)[/dim]")
+        _print_failures(report)
+        if report.failed:
+            raise typer.Exit(code=1)
         return
 
-    asyncio.run(ingest_path(agent_id, path))
-    console.print("  [green]✓[/green] ingested")
+    report = asyncio.run(ingest_path(agent_id, path))
+    console.print(f"  [green]✓[/green] ingested {report.ok_count} item(s)")
+    _print_failures(report)
+    if report.failed:
+        raise typer.Exit(code=1)
+
+
+def _print_failures(report) -> None:
+    """Print per-item ingest failures so partial runs are visible."""
+    for failure in report.failed:
+        console.print(
+            f"  [red]✗[/red] {failure['target']}: {failure['error']}"
+        )
 
 
 @knowledge_app.command("add-db")

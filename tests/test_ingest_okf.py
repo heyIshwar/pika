@@ -37,6 +37,34 @@ async def test_ingest_okf_bundle_skips_reserved(tmp_path):
         "---\ntype: MongoDB Collection\ntitle: orders\ntags: [order]\n---\n# orders\n"
     )
     kb = FakeKnowledge()
-    count = await ingest_okf_bundle(kb, [tables])
-    assert count == 1
+    report = await ingest_okf_bundle(kb, [tables])
+    assert report.ok_count == 1
+    assert len(report.skipped) == 1
+    assert not report.failed
     assert kb.inserted[0]["metadata"]["kind"] == "okf"
+
+
+@pytest.mark.asyncio
+async def test_ingest_okf_bundle_isolates_failures(tmp_path):
+    """One failing insert must not abort the remaining files."""
+    tables = tmp_path / "tables"
+    tables.mkdir()
+    (tables / "a_orders.md").write_text(
+        "---\ntype: Collection\ntitle: orders\n---\nbody"
+    )
+    (tables / "b_users.md").write_text(
+        "---\ntype: Collection\ntitle: users\n---\nbody"
+    )
+
+    class PartlyBrokenKnowledge(FakeKnowledge):
+        async def ainsert(self, *, name, text_content, metadata):
+            if "users" in name:
+                raise RuntimeError("lance write failed")
+            await super().ainsert(name=name, text_content=text_content, metadata=metadata)
+
+    kb = PartlyBrokenKnowledge()
+    report = await ingest_okf_bundle(kb, [tables])
+    assert report.ok == ["orders"]
+    assert len(report.failed) == 1
+    assert "users" in report.failed[0]["target"]
+    assert "lance write failed" in report.failed[0]["error"]
